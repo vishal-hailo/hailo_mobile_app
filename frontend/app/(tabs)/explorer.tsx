@@ -13,9 +13,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import LocationSearch from '../../components/location-search';
 
 // API_URL from environment variable
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+const API_URL = 'http://localhost:3001';
 
 export default function ExplorerScreen() {
   const router = useRouter();
@@ -23,6 +24,8 @@ export default function ExplorerScreen() {
   const [to, setTo] = useState<any>(null);
   const [savedLocations, setSavedLocations] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchFromVisible, setSearchFromVisible] = useState(false);
+  const [searchToVisible, setSearchToVisible] = useState(false);
 
   useEffect(() => {
     loadSavedLocations();
@@ -145,6 +148,16 @@ export default function ExplorerScreen() {
             </View>
           ) : (
             <View style={styles.locationGrid}>
+              {/* Search for a place card */}
+              <TouchableOpacity
+                style={[styles.locationCard, styles.searchCard]}
+                onPress={() => router.push('/plan-ride')}
+              >
+                <Ionicons name="search" size={24} color="#3B82F6" />
+                <Text style={[styles.locationCardLabel, styles.searchCardLabel]}>Search</Text>
+                <Text style={styles.locationCardType}>New Place</Text>
+              </TouchableOpacity>
+
               {savedLocations.map((location: any) => (
                 <TouchableOpacity
                   key={location.id}
@@ -197,6 +210,16 @@ export default function ExplorerScreen() {
             </View>
           ) : (
             <View style={styles.locationGrid}>
+              {/* Search for a place card */}
+              <TouchableOpacity
+                style={[styles.locationCard, styles.searchCard]}
+                onPress={() => router.push('/plan-ride')}
+              >
+                <Ionicons name="search" size={24} color="#3B82F6" />
+                <Text style={[styles.locationCardLabel, styles.searchCardLabel]}>Search</Text>
+                <Text style={styles.locationCardType}>New Place</Text>
+              </TouchableOpacity>
+
               {savedLocations
                 .filter((loc: any) => !from || loc.id !== from.id)
                 .map((location: any) => (
@@ -227,6 +250,29 @@ export default function ExplorerScreen() {
           <Text style={styles.searchButtonText}>View Surge Radar</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Location Search Modals */}
+      <LocationSearch
+        visible={searchFromVisible}
+        onClose={() => setSearchFromVisible(false)}
+        onSelectLocation={(location) => {
+          setFrom(location);
+          setSearchFromVisible(false);
+        }}
+        title="Select Origin"
+        placeholder="Where from?"
+      />
+
+      <LocationSearch
+        visible={searchToVisible}
+        onClose={() => setSearchToVisible(false)}
+        onSelectLocation={(location) => {
+          setTo(location);
+          setSearchToVisible(false);
+        }}
+        title="Select Destination"
+        placeholder="Where to?"
+      />
     </SafeAreaView>
   );
 }
@@ -417,5 +463,14 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  searchCard: {
+    borderStyle: 'dashed',
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
+  },
+  searchCardLabel: {
+    color: '#3B82F6',
   },
 });

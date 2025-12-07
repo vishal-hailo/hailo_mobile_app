@@ -14,7 +14,7 @@ import axios from 'axios';
 import { Ionicons } from '@expo/vector-icons';
 
 // API_URL from environment variable
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+const API_URL = 'http://localhost:3001';
 
 export default function LocationSetupScreen() {
   const router = useRouter();
@@ -30,7 +30,7 @@ export default function LocationSetupScreen() {
       const response = await axios.get(`${API_URL}/api/v1/locations`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      
+
       if (response.data && response.data.length > 0) {
         // User already has locations, skip setup
         await AsyncStorage.setItem('locationsSetup', 'true');

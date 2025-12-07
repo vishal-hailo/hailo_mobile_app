@@ -8,7 +8,9 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+
   Modal,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,9 +18,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
+import LocationSearch from '../../components/location-search';
 
 // API_URL from environment variable
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+const API_URL = 'http://localhost:3001';
 
 const LOCATION_TYPES = [
   { value: 'HOME', label: 'Home', icon: 'home' },
@@ -31,8 +34,9 @@ export default function LocationsManagerScreen() {
   const [locations, setLocations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showSearchModal, setShowSearchModal] = useState(false);
   const [editingLocation, setEditingLocation] = useState(null);
-  
+
   // Form state
   const [type, setType] = useState('HOME');
   const [label, setLabel] = useState('');
@@ -64,7 +68,7 @@ export default function LocationsManagerScreen() {
     try {
       setDetecting(true);
       const { status } = await Location.requestForegroundPermissionsAsync();
-      
+
       if (status !== 'granted') {
         Alert.alert('Permission Denied', 'Location permission is required to detect your current location.');
         return;
@@ -102,296 +106,326 @@ export default function LocationsManagerScreen() {
     }
   };
 
-  const openAddModal = () => {
-    resetForm();
-    setEditingLocation(null);
-    setShowAddModal(true);
-  };
+};
 
-  const openEditModal = (location) => {
-    setEditingLocation(location);
-    setType(location.type);
-    setLabel(location.label);
-    setAddress(location.address);
-    setLatitude(location.latitude.toString());
-    setLongitude(location.longitude.toString());
-    setShowAddModal(true);
-  };
+const handleSearchSelect = (location: any) => {
+  setAddress(location.label); // Or address if avail
+  setLatitude(location.latitude.toString());
+  setLongitude(location.longitude.toString());
+  if (!label) {
+    setLabel(location.label.split(',')[0]); // Suggest label
+  }
+  setShowSearchModal(false);
+};
 
-  const resetForm = () => {
-    setType('HOME');
-    setLabel('');
-    setAddress('');
-    setLatitude('');
-    setLongitude('');
-  };
+const openAddModal = () => {
+  resetForm();
+  setEditingLocation(null);
+  setShowAddModal(true);
+};
 
-  const handleSaveLocation = async () => {
-    if (!label.trim() || !address.trim() || !latitude || !longitude) {
-      Alert.alert('Missing Fields', 'Please fill in all fields');
-      return;
-    }
+const openEditModal = (location) => {
+  setEditingLocation(location);
+  setType(location.type);
+  setLabel(location.label);
+  setAddress(location.address);
+  setLatitude(location.latitude.toString());
+  setLongitude(location.longitude.toString());
+  setShowAddModal(true);
+};
 
-    const lat = parseFloat(latitude);
-    const lng = parseFloat(longitude);
+const resetForm = () => {
+  setType('HOME');
+  setLabel('');
+  setAddress('');
+  setLatitude('');
+  setLongitude('');
+};
 
-    if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-      Alert.alert('Invalid Coordinates', 'Please enter valid latitude (-90 to 90) and longitude (-180 to 180)');
-      return;
-    }
-
-    try {
-      const token = await AsyncStorage.getItem('authToken');
-      const payload = {
-        type,
-        label: label.trim(),
-        address: address.trim(),
-        latitude: lat,
-        longitude: lng,
-      };
-
-      if (editingLocation) {
-        // Update existing location
-        await axios.put(
-          `${API_URL}/api/v1/locations/${editingLocation.id}`,
-          payload,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        Alert.alert('Success', 'Location updated successfully!');
-      } else {
-        // Create new location
-        await axios.post(
-          `${API_URL}/api/v1/locations`,
-          payload,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        Alert.alert('Success', 'Location added successfully!');
-      }
-
-      setShowAddModal(false);
-      resetForm();
-      loadLocations();
-    } catch (error) {
-      console.error('Save location error:', error);
-      Alert.alert('Error', error.response?.data?.error || 'Failed to save location');
-    }
-  };
-
-  const handleDeleteLocation = async (locationId) => {
-    Alert.alert(
-      'Delete Location',
-      'Are you sure you want to delete this location?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const token = await AsyncStorage.getItem('authToken');
-              await axios.delete(`${API_URL}/api/v1/locations/${locationId}`, {
-                headers: { Authorization: `Bearer ${token}` },
-              });
-              Alert.alert('Success', 'Location deleted');
-              loadLocations();
-            } catch (error) {
-              console.error('Delete location error:', error);
-              Alert.alert('Error', 'Failed to delete location');
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  const getIconForType = (type) => {
-    const typeObj = LOCATION_TYPES.find(t => t.value === type);
-    return typeObj ? typeObj.icon : 'location';
-  };
-
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#FF6B35" />
-          <Text style={styles.loadingText}>Loading locations...</Text>
-        </View>
-      </SafeAreaView>
-    );
+const handleSaveLocation = async () => {
+  if (!label.trim() || !address.trim() || !latitude || !longitude) {
+    Alert.alert('Missing Fields', 'Please fill in all fields');
+    return;
   }
 
+  const lat = parseFloat(latitude);
+  const lng = parseFloat(longitude);
+
+  if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    Alert.alert('Invalid Coordinates', 'Please enter valid latitude (-90 to 90) and longitude (-180 to 180)');
+    return;
+  }
+
+  try {
+    const token = await AsyncStorage.getItem('authToken');
+    const payload = {
+      type,
+      label: label.trim(),
+      address: address.trim(),
+      latitude: lat,
+      longitude: lng,
+    };
+
+    if (editingLocation) {
+      // Update existing location
+      await axios.put(
+        `${API_URL}/api/v1/locations/${editingLocation.id}`,
+        payload,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      Alert.alert('Success', 'Location updated successfully!');
+    } else {
+      // Create new location
+      await axios.post(
+        `${API_URL}/api/v1/locations`,
+        payload,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      Alert.alert('Success', 'Location added successfully!');
+    }
+
+    setShowAddModal(false);
+    resetForm();
+    loadLocations();
+  } catch (error) {
+    console.error('Save location error:', error);
+    Alert.alert('Error', error.response?.data?.error || 'Failed to save location');
+  }
+};
+
+const handleDeleteLocation = async (locationId) => {
+  Alert.alert(
+    'Delete Location',
+    'Are you sure you want to delete this location?',
+    [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            const token = await AsyncStorage.getItem('authToken');
+            await axios.delete(`${API_URL}/api/v1/locations/${locationId}`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            Alert.alert('Success', 'Location deleted');
+            loadLocations();
+          } catch (error) {
+            console.error('Delete location error:', error);
+            Alert.alert('Error', 'Failed to delete location');
+          }
+        },
+      },
+    ]
+  );
+};
+
+const getIconForType = (type) => {
+  const typeObj = LOCATION_TYPES.find(t => t.value === type);
+  return typeObj ? typeObj.icon : 'location';
+};
+
+if (loading) {
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#1F2937" />
-        </TouchableOpacity>
-        <Text style={styles.title}>My Locations</Text>
-        <TouchableOpacity onPress={openAddModal} style={styles.addButton}>
-          <Ionicons name="add-circle" size={28} color="#FF6B35" />
-        </TouchableOpacity>
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#FF6B35" />
+        <Text style={styles.loadingText}>Loading locations...</Text>
       </View>
-
-      <ScrollView style={styles.scrollView}>
-        {locations.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Ionicons name="location-outline" size={80} color="#9CA3AF" />
-            <Text style={styles.emptyTitle}>No Locations Yet</Text>
-            <Text style={styles.emptyText}>
-              Add your frequently visited places to get quick commute estimates
-            </Text>
-            <TouchableOpacity style={styles.addFirstButton} onPress={openAddModal}>
-              <Text style={styles.addFirstButtonText}>Add First Location</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={styles.locationsList}>
-            {locations.map((location) => (
-              <View key={location.id} style={styles.locationCard}>
-                <View style={styles.locationIcon}>
-                  <Ionicons name={getIconForType(location.type)} size={24} color="#FF6B35" />
-                </View>
-                <View style={styles.locationInfo}>
-                  <Text style={styles.locationLabel}>{location.label}</Text>
-                  <Text style={styles.locationType}>{location.type}</Text>
-                  <Text style={styles.locationAddress}>{location.address}</Text>
-                  <Text style={styles.locationCoords}>
-                    {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}
-                  </Text>
-                </View>
-                <View style={styles.locationActions}>
-                  <TouchableOpacity
-                    onPress={() => openEditModal(location)}
-                    style={styles.actionButton}
-                  >
-                    <Ionicons name="pencil" size={20} color="#3B82F6" />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => handleDeleteLocation(location.id)}
-                    style={styles.actionButton}
-                  >
-                    <Ionicons name="trash" size={20} color="#EF4444" />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ))}
-          </View>
-        )}
-      </ScrollView>
-
-      {/* Add/Edit Location Modal */}
-      <Modal
-        visible={showAddModal}
-        animationType="slide"
-        transparent={false}
-        onRequestClose={() => setShowAddModal(false)}
-      >
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setShowAddModal(false)}>
-              <Ionicons name="close" size={28} color="#1F2937" />
-            </TouchableOpacity>
-            <Text style={styles.modalTitle}>
-              {editingLocation ? 'Edit Location' : 'Add Location'}
-            </Text>
-            <View style={{ width: 28 }} />
-          </View>
-
-          <ScrollView style={styles.modalContent}>
-            {/* Location Type */}
-            <Text style={styles.fieldLabel}>Type</Text>
-            <View style={styles.typeSelector}>
-              {LOCATION_TYPES.map((locType) => (
-                <TouchableOpacity
-                  key={locType.value}
-                  style={[
-                    styles.typeButton,
-                    type === locType.value && styles.typeButtonActive,
-                  ]}
-                  onPress={() => setType(locType.value)}
-                >
-                  <Ionicons
-                    name={locType.icon}
-                    size={24}
-                    color={type === locType.value ? '#FFFFFF' : '#6B7280'}
-                  />
-                  <Text
-                    style={[
-                      styles.typeButtonText,
-                      type === locType.value && styles.typeButtonTextActive,
-                    ]}
-                  >
-                    {locType.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Label */}
-            <Text style={styles.fieldLabel}>Label</Text>
-            <TextInput
-              style={styles.input}
-              value={label}
-              onChangeText={setLabel}
-              placeholder="e.g., My Home, Office"
-              placeholderTextColor="#9CA3AF"
-            />
-
-            {/* Address */}
-            <Text style={styles.fieldLabel}>Address</Text>
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              value={address}
-              onChangeText={setAddress}
-              placeholder="Enter full address"
-              placeholderTextColor="#9CA3AF"
-              multiline
-              numberOfLines={3}
-            />
-
-            {/* Detect Current Location Button */}
-            <TouchableOpacity
-              style={styles.detectButton}
-              onPress={detectCurrentLocation}
-              disabled={detecting}
-            >
-              <Ionicons name="locate" size={20} color="#FFFFFF" />
-              <Text style={styles.detectButtonText}>
-                {detecting ? 'Detecting...' : 'Use Current Location'}
-              </Text>
-            </TouchableOpacity>
-
-            {/* Coordinates */}
-            <Text style={styles.fieldLabel}>Latitude</Text>
-            <TextInput
-              style={styles.input}
-              value={latitude}
-              onChangeText={setLatitude}
-              placeholder="e.g., 19.0760"
-              placeholderTextColor="#9CA3AF"
-              keyboardType="numeric"
-            />
-
-            <Text style={styles.fieldLabel}>Longitude</Text>
-            <TextInput
-              style={styles.input}
-              value={longitude}
-              onChangeText={setLongitude}
-              placeholder="e.g., 72.8777"
-              placeholderTextColor="#9CA3AF"
-              keyboardType="numeric"
-            />
-
-            <TouchableOpacity style={styles.saveButton} onPress={handleSaveLocation}>
-              <Text style={styles.saveButtonText}>
-                {editingLocation ? 'Update Location' : 'Save Location'}
-              </Text>
-            </TouchableOpacity>
-          </ScrollView>
-        </SafeAreaView>
-      </Modal>
     </SafeAreaView>
   );
+}
+
+return (
+  <SafeAreaView style={styles.container}>
+    <View style={styles.header}>
+      <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <Ionicons name="arrow-back" size={24} color="#1F2937" />
+      </TouchableOpacity>
+      <Text style={styles.title}>My Locations</Text>
+      <TouchableOpacity onPress={openAddModal} style={styles.addButton}>
+        <Ionicons name="add-circle" size={28} color="#FF6B35" />
+      </TouchableOpacity>
+    </View>
+
+    <ScrollView style={styles.scrollView}>
+      {locations.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Ionicons name="location-outline" size={80} color="#9CA3AF" />
+          <Text style={styles.emptyTitle}>No Locations Yet</Text>
+          <Text style={styles.emptyText}>
+            Add your frequently visited places to get quick commute estimates
+          </Text>
+          <TouchableOpacity style={styles.addFirstButton} onPress={openAddModal}>
+            <Text style={styles.addFirstButtonText}>Add First Location</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={styles.locationsList}>
+          {locations.map((location) => (
+            <View key={location.id} style={styles.locationCard}>
+              <View style={styles.locationIcon}>
+                <Ionicons name={getIconForType(location.type)} size={24} color="#FF6B35" />
+              </View>
+              <View style={styles.locationInfo}>
+                <Text style={styles.locationLabel}>{location.label}</Text>
+                <Text style={styles.locationType}>{location.type}</Text>
+                <Text style={styles.locationAddress}>{location.address}</Text>
+                <Text style={styles.locationCoords}>
+                  {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}
+                </Text>
+              </View>
+              <View style={styles.locationActions}>
+                <TouchableOpacity
+                  onPress={() => openEditModal(location)}
+                  style={styles.actionButton}
+                >
+                  <Ionicons name="pencil" size={20} color="#3B82F6" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => handleDeleteLocation(location.id)}
+                  style={styles.actionButton}
+                >
+                  <Ionicons name="trash" size={20} color="#EF4444" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
+    </ScrollView>
+
+    {/* Add/Edit Location Modal */}
+    <Modal
+      visible={showAddModal}
+      animationType="slide"
+      transparent={false}
+      onRequestClose={() => setShowAddModal(false)}
+    >
+      <SafeAreaView style={styles.modalContainer}>
+        <View style={styles.modalHeader}>
+          <TouchableOpacity onPress={() => setShowAddModal(false)}>
+            <Ionicons name="close" size={28} color="#1F2937" />
+          </TouchableOpacity>
+          <Text style={styles.modalTitle}>
+            {editingLocation ? 'Edit Location' : 'Add Location'}
+          </Text>
+          <View style={{ width: 28 }} />
+        </View>
+
+        <ScrollView style={styles.modalContent}>
+          {/* Location Type */}
+          <Text style={styles.fieldLabel}>Type</Text>
+          <View style={styles.typeSelector}>
+            {LOCATION_TYPES.map((locType) => (
+              <TouchableOpacity
+                key={locType.value}
+                style={[
+                  styles.typeButton,
+                  type === locType.value && styles.typeButtonActive,
+                ]}
+                onPress={() => setType(locType.value)}
+              >
+                <Ionicons
+                  name={locType.icon}
+                  size={24}
+                  color={type === locType.value ? '#FFFFFF' : '#6B7280'}
+                />
+                <Text
+                  style={[
+                    styles.typeButtonText,
+                    type === locType.value && styles.typeButtonTextActive,
+                  ]}
+                >
+                  {locType.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Label */}
+          <Text style={styles.fieldLabel}>Label</Text>
+          <TextInput
+            style={styles.input}
+            value={label}
+            onChangeText={setLabel}
+            placeholder="e.g., My Home, Office"
+            placeholderTextColor="#9CA3AF"
+          />
+
+          {/* Address */}
+          <Text style={styles.fieldLabel}>Address</Text>
+          <TouchableOpacity
+            style={styles.searchAddressButton}
+            onPress={() => setShowSearchModal(true)}
+          >
+            <Ionicons name="search" size={20} color="#6B7280" />
+            <Text style={[styles.searchAddressText, address ? styles.filledAddress : null]}>
+              {address || 'Search for an address'}
+            </Text>
+          </TouchableOpacity>
+
+          <Text style={styles.orDivider}>- OR -</Text>
+
+          {/* Detect Current Location Button */}
+          <TouchableOpacity
+            style={styles.detectButton}
+            onPress={detectCurrentLocation}
+            disabled={detecting}
+          >
+            <Ionicons name="locate" size={20} color="#4B5563" />
+            <Text style={styles.detectButtonText}>
+              {detecting ? 'Detecting...' : 'Use Current Location'}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Read-only Coordinates for confirmation (optional, simplified) */}
+          {latitude && longitude ? (
+            <View style={styles.coordsDisplay}>
+              <Text style={styles.coordsText}>
+                📍 {parseFloat(latitude).toFixed(4)}, {parseFloat(longitude).toFixed(4)}
+              </Text>
+            </View>
+          ) : null}
+
+          <Text style={styles.fieldLabel}>Latitude & Longitude (Auto-filled)</Text>
+          <View style={styles.row}>
+            <TextInput
+              style={[styles.input, styles.halfInput]}
+              value={latitude}
+              onChangeText={setLatitude} // Still allowing edit if needed
+              placeholder="Lat"
+              placeholderTextColor="#9CA3AF"
+              keyboardType="numeric"
+            />
+            <TextInput
+              style={[styles.input, styles.halfInput]}
+              value={longitude}
+              onChangeText={setLongitude}
+              placeholder="Lng"
+              placeholderTextColor="#9CA3AF"
+              keyboardType="numeric"
+            />
+          </View>
+
+          <TouchableOpacity style={styles.saveButton} onPress={handleSaveLocation}>
+            <Text style={styles.saveButtonText}>
+              {editingLocation ? 'Update Location' : 'Save Location'}
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </SafeAreaView>
+    </Modal>
+
+    <LocationSearch
+      visible={showSearchModal}
+      onClose={() => setShowSearchModal(false)}
+      onSelectLocation={handleSearchSelect}
+      title="Search Address"
+      placeholder="Enter address"
+    />
+  </SafeAreaView>
+);
 }
 
 const styles = StyleSheet.create({
@@ -617,5 +651,49 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '600',
+  },
+  searchAddressButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+  },
+  searchAddressText: {
+    marginLeft: 10,
+    fontSize: 16,
+    color: '#6B7280',
+    flex: 1,
+  },
+  filledAddress: {
+    color: '#1F2937',
+  },
+  orDivider: {
+    textAlign: 'center',
+    color: '#9CA3AF',
+    fontSize: 12,
+    marginBottom: 8,
+  },
+  coordsDisplay: {
+    backgroundColor: '#F3F4F6',
+    padding: 8,
+    borderRadius: 8,
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  coordsText: {
+    fontSize: 12,
+    color: '#4B5563',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  row: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  halfInput: {
+    flex: 1,
   },
 });

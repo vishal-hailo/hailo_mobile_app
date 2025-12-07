@@ -13,7 +13,7 @@ import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import axios from 'axios';
 // API_URL from environment variable
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+const API_URL = 'http://localhost:3001';
 
 export default function PhoneScreen() {
   const router = useRouter();
@@ -29,14 +29,20 @@ export default function PhoneScreen() {
     console.log('Attempting to send OTP to:', phone);
     console.log('API URL:', API_URL);
     setLoading(true);
-    
+
     try {
+      // Bypass for testing
+      if (phone === '+911234567890' || phone === '1234567890') {
+        router.push({ pathname: '/auth/otp', params: { phone } });
+        return;
+      }
+
       console.log('Making request to:', `${API_URL}/api/v1/auth/request-otp`);
       const response = await axios.post(`${API_URL}/api/v1/auth/request-otp`, { phone }, {
         timeout: 10000, // 10 second timeout
       });
       console.log('OTP Response:', response.data);
-      
+
       if (response.data.success) {
         console.log('OTP sent successfully, navigating to OTP screen');
         router.push({ pathname: '/auth/otp', params: { phone } });
@@ -50,7 +56,7 @@ export default function PhoneScreen() {
         response: error.response?.data,
         status: error.response?.status,
       });
-      
+
       let errorMessage = 'Failed to send OTP. ';
       if (error.code === 'ECONNABORTED') {
         errorMessage += 'Request timed out.';
@@ -61,7 +67,7 @@ export default function PhoneScreen() {
       } else {
         errorMessage += error.message;
       }
-      
+
       Alert.alert('Error', errorMessage);
     } finally {
       setLoading(false);

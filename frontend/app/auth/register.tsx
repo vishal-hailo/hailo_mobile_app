@@ -15,7 +15,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 
 // API_URL from environment variable
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+const API_URL = 'http://localhost:3001';
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -38,7 +38,7 @@ export default function RegisterScreen() {
       );
 
       await AsyncStorage.setItem('user', JSON.stringify(response.data));
-      router.replace('/location-setup');
+      router.replace('/(tabs)/home');
     } catch (error) {
       console.error('Register error:', error);
       Alert.alert('Error', 'Failed to update profile. Please try again.');

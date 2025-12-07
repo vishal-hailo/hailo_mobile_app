@@ -14,14 +14,14 @@ const MOCK_OTP = process.env.OTP_MOCK_CODE || '1234';
 router.post('/request-otp', async (req, res) => {
   try {
     const { phone } = req.body;
-    
+
     if (!phone || !phone.startsWith('+91')) {
       return res.status(400).json({ error: 'Invalid phone number. Must start with +91' });
     }
-    
+
     // In mock mode, always succeed
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       message: 'OTP sent successfully',
       mockOtp: MOCK_OTP,
       note: 'In production, OTP would be sent via SMS'
@@ -36,19 +36,19 @@ router.post('/request-otp', async (req, res) => {
 router.post('/verify-otp', async (req, res) => {
   try {
     const { phone, otp, name } = req.body;
-    
+
     if (!phone || !otp) {
       return res.status(400).json({ error: 'Phone and OTP are required' });
     }
-    
+
     // Verify mock OTP
     if (otp !== MOCK_OTP) {
       return res.status(401).json({ error: 'Invalid OTP' });
     }
-    
+
     // Find or create user
     let user = await prisma.user.findUnique({ where: { phone } });
-    
+
     if (!user) {
       user = await prisma.user.create({
         data: {
@@ -62,9 +62,9 @@ router.post('/verify-otp', async (req, res) => {
         data: { name }
       });
     }
-    
+
     const token = generateToken(user.id, user.phone);
-    
+
     res.json({
       token,
       user: {
@@ -88,11 +88,11 @@ router.get('/', verifyAuth, async (req, res) => {
         locations: true
       }
     });
-    
+
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
+
     res.json({
       id: user.id,
       phone: user.phone,
@@ -103,6 +103,32 @@ router.get('/', verifyAuth, async (req, res) => {
   } catch (error) {
     console.error('Get user error:', error);
     res.status(500).json({ error: 'Failed to get user' });
+  }
+});
+
+// POST /api/v1/me/update
+router.post('/update', verifyAuth, async (req, res) => {
+  try {
+    const { name } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'Name is required' });
+    }
+
+    const user = await prisma.user.update({
+      where: { id: req.user.userId },
+      data: { name: name.trim() }
+    });
+
+    res.json({
+      id: user.id,
+      phone: user.phone,
+      name: user.name,
+      createdAt: user.createdAt
+    });
+  } catch (error) {
+    console.error('Update user error:', error);
+    res.status(500).json({ error: 'Failed to update profile' });
   }
 });
 

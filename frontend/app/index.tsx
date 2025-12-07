@@ -1,44 +1,42 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Image } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import SplashAnimation from '../components/SplashAnimation';
 
 export default function SplashScreen() {
   const router = useRouter();
+  const [animationFinished, setAnimationFinished] = React.useState(false);
 
   useEffect(() => {
-    checkAuth();
-  }, []);
+    if (animationFinished) {
+      checkAuth();
+    }
+  }, [animationFinished]);
 
   const checkAuth = async () => {
     try {
       const token = await AsyncStorage.getItem('authToken');
       const onboardingCompleted = await AsyncStorage.getItem('onboardingCompleted');
-      
-      setTimeout(() => {
-        if (token) {
-          router.replace('/(tabs)/home');
-        } else if (onboardingCompleted) {
-          router.replace('/auth/phone');
-        } else {
-          router.replace('/onboarding');
-        }
-      }, 2000);
+
+      if (token) {
+        router.replace('/(tabs)/home');
+      } else if (onboardingCompleted) {
+        router.replace('/auth/phone');
+      } else {
+        router.replace('/onboarding');
+      }
     } catch (error) {
       console.error('Auth check error:', error);
       router.replace('/onboarding');
     }
   };
 
-  return (
-    <View style={styles.container}>
-      <View style={styles.logoContainer}>
-        <Text style={styles.logo}>HailO</Text>
-        <Text style={styles.tagline}>Mumbai's Commute Genius</Text>
-      </View>
-      <Text style={styles.version}>v1.0.0</Text>
-    </View>
-  );
+  if (!animationFinished) {
+    return <SplashAnimation onAnimationComplete={() => setAnimationFinished(true)} />;
+  }
+
+  return null;
 }
 
 const styles = StyleSheet.create({

@@ -9,13 +9,15 @@ import {
   Alert,
   Linking,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 // API_URL from environment variable
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+const API_URL = 'http://localhost:3001';
 const { width } = Dimensions.get('window');
 
 export default function SurgeRadarScreen() {
@@ -32,7 +34,7 @@ export default function SurgeRadarScreen() {
     try {
       const token = await AsyncStorage.getItem('authToken');
       const response = await axios.post(
-        `${API_URL}/api/v1/commute/surge-radar`,
+        `${API_URL}/api/v1/commute/time-suggestions`,
         {
           origin: {
             latitude: parseFloat(originLat as string),
@@ -42,7 +44,6 @@ export default function SurgeRadarScreen() {
             latitude: parseFloat(destLat as string),
             longitude: parseFloat(destLng as string),
           },
-          durationMinutes: 30,
         },
         {
           headers: { Authorization: `Bearer ${token}` },
@@ -51,16 +52,21 @@ export default function SurgeRadarScreen() {
       setSurgeData(response.data);
     } catch (error) {
       console.error('Load surge data error:', error);
-      Alert.alert('Error', 'Failed to load surge radar data');
+      Alert.alert('Error', 'Failed to load time suggestions');
     } finally {
       setLoading(false);
     }
   };
 
   const handleBookOptimal = async () => {
-    if (!surgeData?.bestBucket) return;
+    if (!surgeData?.bestSlot) return;
 
-    const deepLink = `https://m.uber.com/ul/?action=setPickup&pickup[latitude]=${originLat}&pickup[longitude]=${originLng}&dropoff[latitude]=${destLat}&dropoff[longitude]=${destLng}`;
+    const oLat = Array.isArray(originLat) ? originLat[0] : originLat;
+    const oLng = Array.isArray(originLng) ? originLng[0] : originLng;
+    const dLat = Array.isArray(destLat) ? destLat[0] : destLat;
+    const dLng = Array.isArray(destLng) ? destLng[0] : destLng;
+
+    const deepLink = `https://m.uber.com/ul/?action=setPickup&pickup[latitude]=${oLat}&pickup[longitude]=${oLng}&dropoff[latitude]=${dLat}&dropoff[longitude]=${dLng}`;
 
     try {
       const supported = await Linking.canOpenURL(deepLink);
@@ -75,10 +81,9 @@ export default function SurgeRadarScreen() {
     }
   };
 
-  const getColorForBucket = (color: string) => {
-    if (color === 'green') return '#10B981';
-    if (color === 'yellow') return '#F59E0B';
-    if (color === 'orange') return '#FB923C';
+  const getColorForTraffic = (level: string) => {
+    if (level === 'low') return '#10B981';
+    if (level === 'medium') return '#F59E0B';
     return '#EF4444';
   };
 
@@ -86,7 +91,8 @@ export default function SurgeRadarScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Loading surge data...</Text>
+          <ActivityIndicator size="large" color="#FF6B35" />
+          <Text style={styles.loadingText}>Loading insights...</Text>
         </View>
       </SafeAreaView>
     );
@@ -103,70 +109,74 @@ export default function SurgeRadarScreen() {
       </View>
 
       <ScrollView style={styles.content}>
-        <Text style={styles.routeName}>{routeName}</Text>
-        <Text style={styles.subtitle}>30-minute pricing forecast</Text>
+        {/* 1. Status Header */}
+        <View style={styles.statusCard}>
+          <View style={[styles.statusIcon, {
+            backgroundColor: surgeData?.bestSlot?.multiplier > 1.1 ? '#FEE2E2' : '#ECFDF5'
+          }]}>
+            <Ionicons
+              name={surgeData?.bestSlot?.multiplier > 1.1 ? "trending-up" : "shield-checkmark"}
+              size={32}
+              color={surgeData?.bestSlot?.multiplier > 1.1 ? "#EF4444" : "#10B981"}
+            />
+          </View>
+          <Text style={styles.statusTitle}>
+            {surgeData?.bestSlot?.multiplier > 1.1 ? "Surge is Active" : "Fair Fare Active"}
+          </Text>
+          <Text style={styles.statusSub}>
+            {surgeData?.bestSlot?.multiplier > 1.1
+              ? "Demand is higher than usual."
+              : "Prices are standard right now."}
+          </Text>
+        </View>
 
         {surgeData && (
-          <>
-            {/* Simple Bar Chart */}
-            <View style={styles.chartContainer}>
-              <Text style={styles.chartTitle}>30-Minute Price Forecast</Text>
-              <View style={styles.chart}>
-                {surgeData.buckets.map((bucket: any, index: number) => {
-                  const maxPrice = Math.max(...surgeData.buckets.map((b: any) => b.estimate));
-                  const heightPercent = (bucket.estimate / maxPrice) * 100;
-                  
-                  return (
-                    <View key={index} style={styles.barContainer}>
-                      <Text style={styles.barPrice}>₹{bucket.estimate}</Text>
-                      <View
-                        style={[
-                          styles.bar,
-                          {
-                            height: `${heightPercent}%`,
-                            backgroundColor: getColorForBucket(bucket.color),
-                          },
-                        ]}
-                      />
-                      <Text style={styles.barLabel}>{bucket.label}</Text>
-                    </View>
-                  );
-                })}
+          <View style={styles.optionsContainer}>
+            {/* Option A: NOW */}
+            <TouchableOpacity
+              style={[styles.optionCard, styles.optionCardSelected]}
+              onPress={() => { }} // Could track selection
+            >
+              <View style={styles.optionHeader}>
+                <Text style={styles.optionTitle}>Book Now</Text>
+                {surgeData.suggestions[0].multiplier <= 1.1 && (
+                  <View style={styles.badgeGreen}>
+                    <Text style={styles.badgeText}>Best Value</Text>
+                  </View>
+                )}
               </View>
-            </View>
-
-            {/* Best Time */}
-            <View style={styles.bestTimeCard}>
-              <Text style={styles.bestTimeLabel}>Best Time to Book</Text>
-              <Text style={styles.bestTimeValue}>
-                {surgeData.bestBucket.label} - ₹{surgeData.bestBucket.estimate}
-              </Text>
-              <Text style={styles.savingsText}>
-                Save ₹{surgeData.potentialSaving} vs peak
-              </Text>
-            </View>
-
-            {/* Time Buckets */}
-            <View style={styles.bucketsContainer}>
-              {surgeData.buckets.map((bucket: any, index: number) => (
-                <View key={index} style={styles.bucketRow}>
-                  <View
-                    style={[
-                      styles.bucketIndicator,
-                      { backgroundColor: getColorForBucket(bucket.color) },
-                    ]}
-                  />
-                  <Text style={styles.bucketLabel}>{bucket.label}</Text>
-                  <Text style={styles.bucketPrice}>₹{bucket.estimate}</Text>
-                </View>
-              ))}
-            </View>
-
-            {/* Action Buttons */}
-            <TouchableOpacity style={styles.primaryButton} onPress={handleBookOptimal}>
-              <Text style={styles.primaryButtonText}>🚀 Book Optimal</Text>
+              <View style={styles.optionRow}>
+                <Text style={styles.optionPrice}>₹{surgeData.suggestions[0].estimate}</Text>
+                <Text style={styles.optionTime}>Picking up in 3 mins</Text>
+              </View>
+              <TouchableOpacity style={styles.bookButton} onPress={handleBookOptimal}>
+                <Text style={styles.bookButtonText}>Request Ride</Text>
+              </TouchableOpacity>
             </TouchableOpacity>
-          </>
+
+            {/* Option B: LATER (Only if savings exist) */}
+            {surgeData.potentialSaving > 0 && (
+              <View style={styles.optionCard}>
+                <View style={styles.optionHeader}>
+                  <Text style={styles.optionTitle}>Book Later</Text>
+                  <View style={styles.badgeOrange}>
+                    <Text style={styles.badgeText}>Save ₹{surgeData.potentialSaving}</Text>
+                  </View>
+                </View>
+                <Text style={styles.laterSub}>
+                  Wait until {surgeData.bestSlot.displayTime}
+                </Text>
+                <View style={styles.optionRow}>
+                  <Text style={styles.optionPrice}>₹{surgeData.bestSlot.estimate}</Text>
+                  <Text style={styles.optionTime}>{surgeData.bestSlot.timeLabel} later</Text>
+                </View>
+                <TouchableOpacity style={styles.notifyButton}>
+                  <Ionicons name="notifications-outline" size={20} color="#4B5563" />
+                  <Text style={styles.notifyButtonText}>Set Reminder</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -176,42 +186,35 @@ export default function SurgeRadarScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: '#F3F4F6',
   },
   closeButton: {
     padding: 8,
   },
   closeText: {
-    fontSize: 20,
-    color: '#6B7280',
+    fontSize: 24,
+    color: '#1F2937',
+  },
+  titleContainer: {
+    flex: 1,
+    alignItems: 'center',
   },
   title: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#1F2937',
-  },
-  content: {
-    flex: 1,
-    padding: 24,
-  },
-  routeName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1F2937',
-    marginBottom: 4,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 12,
     color: '#6B7280',
-    marginBottom: 24,
   },
   loadingContainer: {
     flex: 1,
@@ -219,112 +222,134 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
+    marginTop: 12,
     fontSize: 16,
     color: '#6B7280',
   },
-  chartContainer: {
-    marginVertical: 16,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 16,
-    padding: 16,
-  },
-  chartTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  chart: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'flex-end',
-    height: 200,
-    paddingHorizontal: 8,
-  },
-  barContainer: {
+  content: {
     flex: 1,
-    alignItems: 'center',
-    marginHorizontal: 2,
-  },
-  bar: {
-    width: '80%',
-    borderTopLeftRadius: 4,
-    borderTopRightRadius: 4,
-    minHeight: 20,
-  },
-  barLabel: {
-    fontSize: 10,
-    color: '#6B7280',
-    marginTop: 4,
-    textAlign: 'center',
-  },
-  barPrice: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 4,
-  },
-  bestTimeCard: {
-    backgroundColor: '#10B981',
-    borderRadius: 16,
     padding: 20,
-    marginBottom: 24,
   },
-  bestTimeLabel: {
-    fontSize: 14,
-    color: '#FFFFFF',
-    opacity: 0.9,
-    marginBottom: 4,
-  },
-  bestTimeValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 4,
-  },
-  savingsText: {
-    fontSize: 16,
-    color: '#FFFFFF',
-    opacity: 0.9,
-  },
-  bucketsContainer: {
-    marginBottom: 24,
-  },
-  bucketRow: {
-    flexDirection: 'row',
+
+  // Status Card
+  statusCard: {
     alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    marginBottom: 32,
+    marginTop: 16,
   },
-  bucketIndicator: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 12,
+  statusIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
   },
-  bucketLabel: {
-    flex: 1,
-    fontSize: 16,
+  statusTitle: {
+    fontSize: 22,
+    fontWeight: '800',
     color: '#1F2937',
-    fontWeight: '600',
+    marginBottom: 4,
   },
-  bucketPrice: {
+  statusSub: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#FF6B35',
+    color: '#6B7280',
+    textAlign: 'center',
   },
-  primaryButton: {
-    backgroundColor: '#FF6B35',
-    borderRadius: 12,
-    padding: 16,
+
+  // Options
+  optionsContainer: {
+    gap: 16,
+  },
+  optionCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 5,
+  },
+  optionCardSelected: {
+    borderColor: '#FF6B35',
+    borderWidth: 2,
+  },
+  optionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 12,
   },
-  primaryButtonText: {
+  optionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1F2937',
+  },
+  badgeGreen: {
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  badgeOrange: {
+    backgroundColor: '#FFEDD5',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  badgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  optionRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginBottom: 20,
+  },
+  optionPrice: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#1F2937',
+    marginRight: 8,
+  },
+  optionTime: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  laterSub: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 8,
+  },
+
+  // Buttons
+  bookButton: {
+    backgroundColor: '#FF6B35',
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  bookButtonText: {
     color: '#FFFFFF',
     fontSize: 18,
+    fontWeight: 'bold',
+  },
+  notifyButton: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+  },
+  notifyButtonText: {
+    marginLeft: 8,
+    fontSize: 16,
     fontWeight: '600',
+    color: '#4B5563',
   },
 });

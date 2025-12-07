@@ -15,7 +15,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 
 // API_URL from environment variable
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+const API_URL = 'http://localhost:3001';
 
 export default function OTPScreen() {
   const router = useRouter();
@@ -38,7 +38,7 @@ export default function OTPScreen() {
 
       if (response.data.token) {
         await AsyncStorage.setItem('authToken', response.data.token);
-        
+
         // Check if user has a name (existing user) or needs registration
         if (response.data.user.name) {
           await AsyncStorage.setItem('user', JSON.stringify(response.data.user));
@@ -57,7 +57,7 @@ export default function OTPScreen() {
       }
     } catch (error) {
       console.error('Verify OTP error:', error);
-      Alert.alert('Error', error.response?.data?.error || 'Invalid OTP. Please try again.');
+      Alert.alert('Error', (error as any).response?.data?.error || 'Invalid OTP. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -84,7 +84,7 @@ export default function OTPScreen() {
               onChangeText={setOtp}
               placeholder="1234"
               keyboardType="number-pad"
-              maxLength={4}
+              maxLength={6}
               autoFocus
             />
             <Text style={styles.hint}>Enter OTP: 1234</Text>

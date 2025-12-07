@@ -4,7 +4,7 @@
     "slug": "hailo",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/android-chrome-512x512.png",
     "scheme": "hailo",
     "userInterfaceStyle": "automatic",
     "ios": {

@@ -10,6 +10,7 @@
   },
   "include": [
     "**/*.ts",
-    "**/*.tsx"
+    "**/*.tsx",
+    "app/(tabs)/(_home-old-backup.tsx)"
   ]
 }
